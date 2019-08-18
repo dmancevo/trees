@@ -23,10 +23,12 @@ float split(int length, float * feature, float * gradient)
             }
             gain = right * right + left * left;
             #pragma omp critical
-            if(best_gain < gain)
             {
-                best_gain  = gain;
-                best_split = split;
+                if(best_gain < gain)
+                {
+                    best_gain  = gain;
+                    best_split = split;
+                }
             }
         }
     }
