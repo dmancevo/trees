@@ -39,6 +39,31 @@ void feature_split(
     }
 }
 
+void split(int n_features,
+        float ** features,
+        float * gradient)
+{
+    float split_gain[n_features];
+    float split_feature[n_features];
+    for(int i = 0; i < n_features; i++)
+        feature_split(n_rows,
+                &split_feature[i],
+                &split_gain[i],
+                features[i],
+                gradient);
+
+    float best_gain = split_gain[0];
+    int feature = 0;
+    for(int i = 1; i < n_features; i++)
+    {
+        if(best_gain < split_gain[i])
+        {
+            best_gain = split_gain[i];
+            feature = i;
+        }
+    }
+}
+
 int main()
 {
     float best_split, best_gain;
@@ -46,7 +71,7 @@ int main()
     float gradient[8] = {-1,-1,-1,-1,1,1,1,1};
     feature_split(8, &best_split, &best_gain,
             feature, gradient);
-    printf("best_split=%f bedt_gain=%f\n",
+    printf("best_split=%f best_gain=%f\n",
             best_split, best_gain);
     return 0;
 }
