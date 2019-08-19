@@ -1,9 +1,14 @@
 #include <stdio.h>
 #include <omp.h>
 
-float split(int length, float * feature, float * gradient)
+void feature_split(
+        int length,
+        float * best_split,
+        float * best_gain,
+        float * feature,
+        float * gradient)
 {
-    float best_split, best_gain = -1;
+    *best_gain = -1;
     #pragma omp parallel
     {
         float gain, left, right, split;
@@ -24,21 +29,24 @@ float split(int length, float * feature, float * gradient)
             gain = right * right + left * left;
             #pragma omp critical
             {
-                if(best_gain < gain)
+                if(*best_gain < gain)
                 {
-                    best_gain  = gain;
-                    best_split = split;
+                    *best_gain  = gain;
+                    *best_split = split;
                 }
             }
         }
     }
-    return best_split;
 }
 
 int main()
 {
+    float best_split, best_gain;
     float feature[8] = {1,2,3,4,5,6,7,8};
     float gradient[8] = {-1,-1,-1,-1,1,1,1,1};
-    printf("split=%f\n", split(8, feature, gradient));
+    feature_split(8, &best_split, &best_gain,
+            feature, gradient);
+    printf("best_split=%f bedt_gain=%f\n",
+            best_split, best_gain);
     return 0;
 }
