@@ -58,7 +58,7 @@ void split(int n_features,
     float best_gain = split_gain[0];
     *best_feature = 0;
     for(int i = 1; i < n_features; i++)
-    {
+    {   
         if(best_gain < split_gain[i])
         {
             best_gain = split_gain[i];
