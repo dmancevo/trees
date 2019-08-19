@@ -57,8 +57,9 @@ void split(int n_features,
 
     float best_gain = split_gain[0];
     *best_feature = 0;
+    *best_split = splits[0];
     for(int i = 1; i < n_features; i++)
-    {   
+    { 
         if(best_gain < split_gain[i])
         {
             best_gain = split_gain[i];
@@ -72,8 +73,8 @@ int main()
 {
     float best_split;
     int best_feature;
-    float feature_1[8] = {1,2,3,4,5,6,7,8};
-    float feature_2[8] = {1,2,3,3,4,4,7,8};
+    float feature_1[8] = {1,2,3,4,4,4,7,7};
+    float feature_2[8] = {1,2,3,4,5,6,7,8};
     float * features[2];
     features[0] = feature_1;
     features[1] = feature_2;
