@@ -1,6 +1,14 @@
 #include <stdio.h>
 #include <omp.h>
 
+float power(float x, int i)
+{
+    float y = 1;
+    for(int j = 0; j < i; j++)
+        y *= x;
+    return y;
+}
+
 void feature_split(
         int length,
         float * best_split,
@@ -67,6 +75,51 @@ void split(int n_features,
             *best_split = splits[i];
         }
     }
+}
+
+void rec_tree(
+        int max_depth,
+        int n_features,
+        int n_rows,
+        int * feature_indices,
+        float * splits,
+        float ** features,
+        float * gradient)
+{
+    int best_feature;
+    float best_split;
+    split(
+        n_features,
+        n_rows,
+        &best_feature,
+        &best_split,
+        features,
+        gradient);
+    
+    float ** left_features;
+    float ** right_features;
+    float * left_gradient;
+    float * right_gradient;
+}
+
+ void tree(
+         int max_depth,
+         int n_features,
+         int n_rows,
+         float ** features,
+         float * gradient)
+{
+    int n = power(2, max_depth);
+    int feature_indices[n];
+    float splits[n];
+    rec_tree(
+            max_depth,
+            n_features,
+            n_rows,
+            feature_indices,
+            splits,
+            features,
+            gradient);
 }
 
 int main()
