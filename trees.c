@@ -10,9 +10,10 @@ float power(float x, int i)
 }
 
 void feature_split(
-        int length,
         float * best_split,
         float * best_gain,
+        int n_rows,
+        int * ind,
         float * feature,
         float * gradient)
 {
@@ -21,18 +22,20 @@ void feature_split(
     {
         float gain, left, right, split;
         #pragma omp for
-        for(int i = 0; i < length; i++)
+        for(int i = 0; i < n_rows; i++)
         {
+            int k;
             left  = 0;
             right = 0;
             gain  = 0;
             split = feature[i];
-            for(int j = 0; j < length; j++)
+            for(int j = 0; j < n_rows; j++)
             {
-                if(feature[j] < split)
-                    left += gradient[j];
+                k = ind[j];
+                if(feature[k] < split)
+                    left += gradient[k];
                 else
-                    right += gradient[j];
+                    right += gradient[k];
             }
             gain = right * right + left * left;
             #pragma omp critical
@@ -49,6 +52,7 @@ void feature_split(
 
 void split(int n_features,
         int n_rows,
+        int * ind,
         int * best_feature,
         float * best_split,
         float ** features,
@@ -57,9 +61,11 @@ void split(int n_features,
     float split_gain[n_features];
     float splits[n_features];
     for(int i = 0; i < n_features; i++)
-        feature_split(n_rows,
+        feature_split(
                 &splits[i],
                 &split_gain[i],
+                n_rows,
+                ind,
                 features[i],
                 gradient);
 
@@ -92,15 +98,16 @@ void split_node(
         struct Node * node,
         int n_features,
         int n_rows,
+        int * ind,
         float ** features,
-        float * gradient,
-        int * indices)
+        float * gradient)
 {
     int f;
     float s;
     split(
         n_features,
         n_rows,
+        ind,
         &f,
         &s,
         features,
@@ -113,7 +120,7 @@ void split_node(
         #pragma omp for
         for(int i=0; i<n_rows; i++)
         {
-            j = indices[i];
+            j = ind[i];
             if(features[f][j] < s)
                 ++l;
             else
@@ -127,10 +134,11 @@ void split_node(
     float * r_ind = malloc(sizeof(int) * n_r);
     #pragma omp parallel
     {
+        int j;
         #pragma omp for
         for(int i=0; i<n_rows; i++)
         {
-            j = indices[i];
+            j = ind[i];
             if(features[f][j] < s)
                 l_ind[i] = j;
             else
@@ -140,30 +148,33 @@ void split_node(
 
     if(0 < n_l)
     {
+        float l_g=0;
         node->left=1;
-        node->left_child=Node(
-            f, s, g, 0, 0)
+        struct Node L;
+        L.feature=f;
+        L.split=s;
+        L.g=l_g;
+        L.left=0;
+        L.right=0;
+        node->left_child=&L;
+    }
+
+    if(0 < n_r)
+    {
+        float r_g=0;
+        node->right=1;
+        struct Node R;
+        R.feature=f;
+        R.split=s;
+        R.g=r_g;
+        R.left=0;
+        R.right=0;
+        node->right_child=&R;
     }
 }
 
 
 int main()
 {
-    float best_split;
-    int best_feature;
-    float feature_1[8] = {1,2,3,4,4,4,7,7};
-    float feature_2[8] = {1,2,3,4,5,6,7,8};
-    float * features[2];
-    features[0] = feature_1;
-    features[1] = feature_2;
-    float gradient[8] = {-1,-1,-1,-1,1,1,1,1};
-    split(2, 8, &best_feature, &best_split,
-            features, gradient);
-    printf("best_split=%f best_feature=%d\n",
-            best_split, best_feature);
-    int max_depth = 1;
-    int n = power(2, max_depth);
-    int feature_indices[n];
-    float splits[n];
     return 0;
 }
