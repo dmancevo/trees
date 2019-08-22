@@ -77,50 +77,75 @@ void split(int n_features,
     }
 }
 
-void rec_tree(
-        int max_depth,
+struct Node
+{
+    float feature;
+    float split;
+    float g;
+    int left;
+    int right;
+    struct Node * left_child;
+    struct Node * right_child;
+};
+
+void split_node(
+        struct Node * node,
         int n_features,
         int n_rows,
-        int * feature_indices,
-        float * splits,
         float ** features,
-        float * gradient)
+        float * gradient,
+        int * indices)
 {
-    int best_feature;
-    float best_split;
+    int f;
+    float s;
     split(
         n_features,
         n_rows,
-        &best_feature,
-        &best_split,
+        &f,
+        &s,
         features,
         gradient);
-    
-    float ** left_features;
-    float ** right_features;
-    float * left_gradient;
-    float * right_gradient;
+
+    int n_l=0, n_r=0;
+    #pragma omp parallel reduction(+:n_l) reduction(+:n_r)
+    {
+        int l=0, r=0, j;
+        #pragma omp for
+        for(int i=0; i<n_rows; i++)
+        {
+            j = indices[i];
+            if(features[f][j] < s)
+                ++l;
+            else
+                ++r;
+        }
+        n_l += l;
+        n_r += r;
+    }
+
+    float * l_ind = malloc(sizeof(int) * n_l);
+    float * r_ind = malloc(sizeof(int) * n_r);
+    #pragma omp parallel
+    {
+        #pragma omp for
+        for(int i=0; i<n_rows; i++)
+        {
+            j = indices[i];
+            if(features[f][j] < s)
+                l_ind[i] = j;
+            else
+                r_ind[i] = j;
+        }
+    }
+
+    if(0 < n_l)
+    {
+        node->left=1;
+        node->left_child=Node(
+            f, s, g, 0, 0)
+    }
 }
 
- void tree(
-         int max_depth,
-         int n_features,
-         int n_rows,
-         float ** features,
-         float * gradient)
-{
-    int n = power(2, max_depth);
-    int feature_indices[n];
-    float splits[n];
-    rec_tree(
-            max_depth,
-            n_features,
-            n_rows,
-            feature_indices,
-            splits,
-            features,
-            gradient);
-}
 
 int main()
 {
@@ -136,5 +161,9 @@ int main()
             features, gradient);
     printf("best_split=%f best_feature=%d\n",
             best_split, best_feature);
+    int max_depth = 1;
+    int n = power(2, max_depth);
+    int feature_indices[n];
+    float splits[n];
     return 0;
 }
