@@ -21,14 +21,14 @@ void feature_split(
     #pragma omp parallel
     {
         float gain, left, right, split;
+        int k;
         #pragma omp for
         for(int i = 0; i < n_rows; i++)
         {
-            int k;
             left  = 0;
             right = 0;
             gain  = 0;
-            split = feature[i];
+            split = feature[ind[i]];
             for(int j = 0; j < n_rows; j++)
             {
                 k = ind[j];
@@ -50,7 +50,8 @@ void feature_split(
     }
 }
 
-void split(int n_features,
+void split(
+        int n_features,
         int n_rows,
         int * ind,
         int * best_feature,
@@ -176,5 +177,28 @@ void split_node(
 
 int main()
 {
+    int n_features = 2;
+    int n_rows = 8;
+    int ind[8] = {0,1,2,3,4,5,6,7};
+    int best_feature;
+    float best_split, best_gain;
+    float feature_0[8]={1,1,1,1,2,2,2,2};
+    float feature_1[8]={1,1,3,3,3,3,2,2};
+    float ** features;
+    features=malloc(sizeof(features) * 8);
+    features[0] = feature_0;
+    features[1] = feature_1;
+    float gradient[8]={-1,-1,-1,-1,2,2,2,2};
+    split(
+        n_features,
+        n_rows,
+        ind,
+        &best_feature,
+        &best_split,
+        features,
+        gradient);
+    printf("best_feature=%d best_split=%f\n",
+            best_feature,
+            best_split);
     return 0;
 }
