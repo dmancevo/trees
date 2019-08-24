@@ -93,8 +93,8 @@ struct Node
     float g;
     int leaf;
     int * ind;
-    struct Node * left_child;
-    struct Node * right_child;
+    struct Node * left;
+    struct Node * right;
 };
 
 void split_node(
@@ -150,24 +150,36 @@ void split_node(
         }
     }
 
-    // Children.
-    if(1 < n_l && 1< n_r)
+    // Recursive call.
+    if(1<n_l && 1< n_r)
     {
         node->leaf=0;
 
         Node L={
             .leaf=1,
             .ind=l_ind};
-        node->left_child=&L;
+        node->left=&L;
 
         Node R={
             .leaf=1,
             .ind=r_ind};
-        node->right_child=&R;
+        node->right=&R;
+
+        split_node(
+            &L,
+            n_features,
+            n_l,
+            features,
+            gradient);
+        
+        split_node(
+            &R,
+            n_features,
+            n_r,
+            features,
+            gradient);
     }
 }
-
-typedef struct NodeQueue NodeQueue;
 
 Node tree_fit(
         int n_features,
@@ -219,7 +231,7 @@ int main()
         features,
         gradient);
     printf("feature=%d split=%f\n",
-            root.feature,
-            root.split);
+            root.left->feature,
+            root.left->split);
     return 0;
 }
