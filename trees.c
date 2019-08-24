@@ -61,20 +61,18 @@ void split(
 {
     float split_gain[n_features];
     float splits[n_features];
-    for(int i = 0; i < n_features; i++){
+    for(int i = 0; i < n_features; i++)
         feature_split(
                 &splits[i],
                 &split_gain[i],
                 n_rows,
                 ind,
                 features[i],
-                gradient);}
+                gradient);
 
-    float best_gain = split_gain[0];
-    *best_feature = 0;
-    *best_split = splits[0];
-    for(int i = 1; i < n_features; i++)
-    { 
+    float best_gain = 1e-7;
+    for(int i = 0; i < n_features; i++)
+    {
         if(best_gain < split_gain[i])
         {
             best_gain = split_gain[i];
@@ -92,6 +90,8 @@ struct Node
     float split;
     float g;
     int leaf;
+    int node_id;
+    int depth;
     int * ind;
     struct Node * left;
     struct Node * right;
@@ -150,6 +150,8 @@ void split_node(
         }
     }
 
+    free(node->ind);
+
     // Recursive call.
     if(1<n_l && 1< n_r)
     {
@@ -157,11 +159,15 @@ void split_node(
 
         Node L={
             .leaf=1,
+            .node_id=2*node->node_id+1,
+            .depth=node->depth+1,
             .ind=l_ind};
         node->left=&L;
 
         Node R={
             .leaf=1,
+            .node_id=2*node->node_id+2,
+            .depth=node->depth+1,
             .ind=r_ind};
         node->right=&R;
 
@@ -197,6 +203,8 @@ Node tree_fit(
     }
     Node root={
         .leaf=1,
+        .node_id=0,
+        .depth=0,
         .ind=ind
     };
 
@@ -218,20 +226,23 @@ int main()
     int ind[8] = {0,1,2,3,4,5,6,7};
     int best_feature;
     float best_split, best_gain;
-    float feature_0[8]={0,1,2,3,4,5,6,7};
+    float feature_0[8]={1,1,1,1,4,5,7,7};
     float feature_1[8]={1,1,3,3,3,3,2,2};
     float ** features;
     features=malloc(sizeof(features) * 8);
     features[0] = feature_0;
     features[1] = feature_1;
-    float gradient[8]={-1,-1,-1,-1,2,2,2,2};
+    float gradient[8]={-2,-2,-1,-1,2,2,3,3};
     Node root = tree_fit(
         n_features,
         n_rows,
         features,
         gradient);
-    printf("feature=%d split=%f\n",
-            root.left->feature,
-            root.left->split);
+    printf("node id %d\n",
+            root.right->node_id);
+    printf("node_id=%d feature=%d split=%f\n",
+            root.right->node_id,
+            root.right->feature,
+            root.right->split);
     return 0;
 }
