@@ -61,14 +61,14 @@ void split(
 {
     float split_gain[n_features];
     float splits[n_features];
-    for(int i = 0; i < n_features; i++)
+    for(int i = 0; i < n_features; i++){
         feature_split(
                 &splits[i],
                 &split_gain[i],
                 n_rows,
                 ind,
                 features[i],
-                gradient);
+                gradient);}
 
     float best_gain = split_gain[0];
     *best_feature = 0;
@@ -84,13 +84,16 @@ void split(
     }
 }
 
+typedef struct Node Node;
+
 struct Node
 {
-    float feature;
+    int feature;
     float split;
     float g;
     int left;
     int right;
+    int * ind;
     struct Node * left_child;
     struct Node * right_child;
 };
@@ -99,30 +102,31 @@ void split_node(
         struct Node * node,
         int n_features,
         int n_rows,
-        int * ind,
         float ** features,
         float * gradient)
 {
-    int f;
-    float s;
+    int f; float s;
     split(
         n_features,
         n_rows,
-        ind,
+        node->ind,
         &f,
         &s,
         features,
         gradient);
 
+    node->feature=f;
+    node->split=s;
+
     int n_l=0, n_r=0;
     #pragma omp parallel reduction(+:n_l) reduction(+:n_r)
     {
-        int l=0, r=0, j;
+        int l=0, r=0, k;
         #pragma omp for
         for(int i=0; i<n_rows; i++)
         {
-            j = ind[i];
-            if(features[f][j] < s)
+            k = node->ind[i];
+            if(features[f][k] < s)
                 ++l;
             else
                 ++r;
@@ -131,47 +135,84 @@ void split_node(
         n_r += r;
     }
 
-    float * l_ind = malloc(sizeof(int) * n_l);
-    float * r_ind = malloc(sizeof(int) * n_r);
+    int * l_ind = malloc(sizeof(int) * n_l);
+    int * r_ind = malloc(sizeof(int) * n_r);
     #pragma omp parallel
     {
-        int j;
+        int k;
         #pragma omp for
         for(int i=0; i<n_rows; i++)
         {
-            j = ind[i];
-            if(features[f][j] < s)
-                l_ind[i] = j;
+            k = node->ind[i];
+            if(features[f][k] < s)
+                l_ind[i] = k;
             else
-                r_ind[i] = j;
+                r_ind[i] = k;
         }
     }
 
+    // Recursive calls.
     if(0 < n_l)
     {
-        float l_g=0;
         node->left=1;
-        struct Node L;
-        L.feature=f;
-        L.split=s;
-        L.g=l_g;
-        L.left=0;
-        L.right=0;
+        Node L={
+            .left=0,
+            .right=0,
+            .ind=l_ind};
         node->left_child=&L;
+        split_node(
+            &L,
+            n_features,
+            n_l,
+            features,
+            gradient);
     }
 
     if(0 < n_r)
     {
-        float r_g=0;
         node->right=1;
-        struct Node R;
-        R.feature=f;
-        R.split=s;
-        R.g=r_g;
-        R.left=0;
-        R.right=0;
+        Node R={
+            .left=0,
+            .right=0,
+            .ind=r_ind};
         node->right_child=&R;
+        split_node(
+            &R,
+            n_features,
+            n_r,
+            features,
+            gradient);
     }
+}
+
+Node tree_fit(
+        int n_features,
+        int n_rows,
+        float ** features,
+        float * gradient)
+{
+    // Initialize root.
+    int * ind = malloc(sizeof(int) * n_rows);
+    #pragma omp parallel
+    {
+        #pragma omp for
+        for(int i=0; i<n_rows; i++)
+            ind[i]=i;
+    }
+    Node root={
+        .left=0,
+        .right=0,
+        .ind=ind
+    };
+
+    // Split nodes.
+    split_node(
+        &root,
+        n_features,
+        n_rows,
+        features,
+        gradient);
+    return root;
 }
 
 
@@ -182,23 +223,20 @@ int main()
     int ind[8] = {0,1,2,3,4,5,6,7};
     int best_feature;
     float best_split, best_gain;
-    float feature_0[8]={1,1,1,1,2,2,2,2};
+    float feature_0[8]={0,1,2,3,4,5,6,7};
     float feature_1[8]={1,1,3,3,3,3,2,2};
     float ** features;
     features=malloc(sizeof(features) * 8);
     features[0] = feature_0;
     features[1] = feature_1;
     float gradient[8]={-1,-1,-1,-1,2,2,2,2};
-    split(
+    Node root = tree_fit(
         n_features,
         n_rows,
-        ind,
-        &best_feature,
-        &best_split,
         features,
         gradient);
-    printf("best_feature=%d best_split=%f\n",
-            best_feature,
-            best_split);
+    printf("feature=%d split=%f\n",
+            root.feature,
+            root.split);
     return 0;
 }
