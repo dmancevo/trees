@@ -135,22 +135,21 @@ void split_node(
         n_r += r;
     }
 
-    if(1<n_l && 1< n_r)
+    if(0<n_l && 0<n_r)
     {
 
         int * l_ind = malloc(sizeof(int) * n_l);
         int * r_ind = malloc(sizeof(int) * n_r);
-        #pragma omp parallel
+        int k, l_i=0, r_i=0;
+        for(int i=0; i<n_rows; i++)
         {
-            int k;
-            #pragma omp for
-            for(int i=0; i<n_rows; i++)
-            {
-                k = node->ind[i];
-                if(features[f][k] < s)
-                    l_ind[i] = k;
-                else
-                    r_ind[i] = k;
+            k = node->ind[i];
+            if(features[f][k] < s){
+                l_ind[l_i] = k;
+                ++l_i;
+            } else{
+                r_ind[r_i] = k;
+                ++r_i;
             }
         }
 
