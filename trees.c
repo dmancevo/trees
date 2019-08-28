@@ -57,10 +57,10 @@ void fit_tree(Node * node)
             }
 #pragma omp critical
 {
-            if(best < gl * gl + gr * gr){
-                best = gl * gl + gr * gr;
-                node->split_ind = j;
-                node->split = node->features[i][k1];
+            if(best < (gl * gl)/nl + (gr * gr)/nr){
+                best = (gl * gl)/nl + (gr * gr)/nr;
+                node->split_ind=j;
+                node->split=node->features[i][k1];
                 left->val = gl / nl;
                 right->val = gr / nr;
                 left->n_samples = nl;
