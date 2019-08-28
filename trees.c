@@ -88,7 +88,7 @@ void fit_tree(Node * node)
             }
         }
         node->left=left; node->right=right;
-    
+        free(node->ind);    
         // Recursive calls.
         fit_tree(right); fit_tree(left);
 
