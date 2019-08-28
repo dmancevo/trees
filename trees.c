@@ -1,290 +1,104 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <omp.h>
-
-float power(float x, int i)
-{
-    float y = 1;
-    for(int j = 0; j < i; j++)
-        y *= x;
-    return y;
-}
-
-void feature_split(
-        float * best_split,
-        float * best_gain,
-        int n_rows,
-        int * ind,
-        float * feature,
-        float * gradient)
-{
-    *best_gain = -1;
-    #pragma omp parallel
-    {
-        float gain, left, right, split;
-        int k;
-        #pragma omp for
-        for(int i = 0; i < n_rows; i++)
-        {
-            left  = 0;
-            right = 0;
-            gain  = 0;
-            split = feature[ind[i]];
-            for(int j = 0; j < n_rows; j++)
-            {
-                k = ind[j];
-                if(feature[k] < split)
-                    left += gradient[k];
-                else
-                    right += gradient[k];
-            }
-            gain = right * right + left * left;
-            #pragma omp critical
-            {
-                if(*best_gain < gain)
-                {
-                    *best_gain  = gain;
-                    *best_split = split;
-                }
-            }
-        }
-    }
-}
-
-void split(
-        int n_features,
-        int n_rows,
-        int * ind,
-        int * best_feature,
-        float * best_split,
-        float ** features,
-        float * gradient)
-{
-    float split_gain[n_features];
-    float splits[n_features];
-    for(int i = 0; i < n_features; i++)
-        feature_split(
-                &splits[i],
-                &split_gain[i],
-                n_rows,
-                ind,
-                features[i],
-                gradient);
-
-    float best_gain = 1e-7;
-    for(int i = 0; i < n_features; i++)
-    {
-        if(best_gain < split_gain[i])
-        {
-            best_gain = split_gain[i];
-            *best_feature = i;
-            *best_split = splits[i];
-        }
-    }
-}
+#include<stdio.h>
+#include<omp.h>
 
 typedef struct Node Node;
 
-struct Node
-{
-    int feature;
-    float split;
-    float g;
+struct Node {
     int leaf;
-    int node_id;
-    int depth;
+    float val;
+    int min_samples;
+    int n_samples;
+    int n_features;
     int * ind;
-    struct Node * left;
-    struct Node * right;
+    float ** features;
+    int split_ind;
+    float split;
+    float * g;
+    Node * left;
+    Node * right;
 };
 
-void split_node(
-        struct Node * node,
-        int n_features,
-        int n_rows,
-        float ** features,
-        float * gradient)
+void fit_tree(Node * node)
 {
-    int f; float s;
-    split(
-        n_features,
-        n_rows,
-        node->ind,
-        &f,
-        &s,
-        features,
-        gradient);
 
-    node->feature=f;
-    node->split=s;
+    // Initialize left and right children.
+    Node * left = malloc(sizeof(Node));
+    left->min_samples=node->min_samples;
+    left->n_features=node->n_features;
+    left->features=node->features;
+    left->g=node->g;
+    
+    Node * right = malloc(sizeof(Node));
+    right->min_samples=node->min_samples;
+    right->n_features=node->n_features;
+    right->features=node->features;
+    right->g=node->g;
 
-    int n_l=0, n_r=0;
-    #pragma omp parallel reduction(+:n_l) reduction(+:n_r)
-    {
-        int l=0, r=0, k;
-        #pragma omp for
-        for(int i=0; i<n_rows; i++)
-        {
-            k = node->ind[i];
-            if(features[f][k] < s)
-                ++l;
-            else
-                ++r;
+    // Find best split.
+    float best = -1, gl, gr;
+    int k1, k2, nl, nr;
+    for(int i=0; i<node->n_features; i++){
+#pragma omp parallel private(gl, gr, k1, k2, nl, nr)
+#pragma omp for
+{
+        for(int j=0; j<node->n_samples; j++){
+            k1 = node->ind[j];
+            gl=0;
+            gr=0;
+            for(int w=0; w<node->n_samples; w++){
+                k2 = node->ind[w];
+                if(node->features[i][k2] < node->features[i][k1]){
+                    gl += node->g[k2];
+                    nl++;
+                } else {
+                    gr += node->g[k2];
+                    nr++;
+                }
+            }
+#pragma omp critical
+{
+            if(best < gl * gl + gr * gr){
+                best = gl * gl + gr * gr;
+                node->split_ind = j;
+                node->split = node->features[i][k1];
+                left->val = gl / nl;
+                right->val = gr / nr;
+                left->n_samples = nl;
+                right->n_samples = nr;
+            }
+}
         }
-        n_l += l;
-        n_r += r;
+}
     }
 
-    if(0<n_l && 0<n_r)
-    {
-
-        int * l_ind = malloc(sizeof(int) * n_l);
-        int * r_ind = malloc(sizeof(int) * n_r);
-        int k, l_i=0, r_i=0;
-        for(int i=0; i<n_rows; i++)
-        {
-            k = node->ind[i];
-            if(features[f][k] < s){
-                l_ind[l_i] = k;
-                ++l_i;
-            } else{
-                r_ind[r_i] = k;
-                ++r_i;
-            }
-        }
-
-        free(node->ind);
+    if(node->min_samples < nl && node->min_samples < nr){
         node->leaf=0;
-
-        Node L={
-            .leaf=1,
-            .node_id=2*node->node_id+1,
-            .depth=node->depth+1,
-            .ind=l_ind};
-        node->left=&L;
-
-        Node R={
-            .leaf=1,
-            .node_id=2*node->node_id+2,
-            .depth=node->depth+1,
-            .ind=r_ind};
-        node->right=&R;
-
-        // Recursive call.
-        split_node(
-            &L,
-            n_features,
-            n_l,
-            features,
-            gradient);
-        
-        split_node(
-            &R,
-            n_features,
-            n_r,
-            features,
-            gradient);
-    } else {
-        float gr=0;
-        #pragma omp parallel reduction(+:gr)
-        {
-            #pragma omp for
-            for(int i=0; i<n_rows; i++)
-            {
-                gr+=gradient[node->ind[i]];
+        float ** f;
+        left->ind = malloc(sizeof(f) * nl);
+        right->ind = malloc(sizeof(f) * nr);
+        int k, j=0, w=0;
+        for(int i=0; i<node->n_samples; i++){
+            k = node->ind[i];
+            if(node->features[node->split_ind][k] < node->split){
+                left->ind[j]=k;
+                ++j;
+            } else {
+                left->ind[w]=k;
+                ++w;
             }
         }
-        node->g=gr/n_rows;
+        node->left=left; node->right=right;
+    
+        // Recursive calls.
+        fit_tree(right); fit_tree(left);
+
+    } else {
+        free(left);free(right);
+        node->leaf=1;
     }
-
 }
-
-Node tree_fit(
-        int n_features,
-        int n_rows,
-        float ** features,
-        float * gradient)
-{
-    // Initialize root.
-    int * ind = malloc(sizeof(int) * n_rows);
-    #pragma omp parallel
-    {
-        #pragma omp for
-        for(int i=0; i<n_rows; i++)
-            ind[i]=i;
-    }
-    Node root={
-        .leaf=1,
-        .node_id=0,
-        .depth=0,
-        .ind=ind
-    };
-
-    // Split nodes.
-    split_node(
-        &root,
-        n_features,
-        n_rows,
-        features,
-        gradient);
-    return root;
-}
-
-void tree_predict(
-        Node * root,
-        int n_rows,
-        float ** f,
-        float * p)
-{
-//    #pragma omp parallel
-//    {
-        Node * n = root;
-//        #pragma omp for
-        for(int i=0; i<n_rows; i++)
-        {
-            while(n->leaf != 1)
-            {
-                if(f[n->feature][i] < n->split)
-                    n = root->left;
-                else
-                    n = root->right;
-            } 
-            p[i] = n->g;
-            n = root;
-        }
-//    }
-}
-
 
 int main()
 {
-    int n_features = 2;
-    int n_rows = 8;
-    int ind[8] = {0,1,2,3,4,5,6,7};
-    int best_feature;
-    float best_split, best_gain;
-    float feature_0[8]={1,1,2,2,3,3,4,4};
-    float feature_1[8]={1,1,3,3,3,3,2,2};
-    float ** features;
-    features=malloc(sizeof(features) * 8);
-    features[0] = feature_0;
-    features[1] = feature_1;
-    float gradient[8]={-3,-2,-2,-2,4,4,5,5};
-    Node root = tree_fit(
-        n_features,
-        n_rows,
-        features,
-        gradient);
-    float * preds = malloc(8 * sizeof(float));
-    tree_predict(
-        &root,
-        n_rows,
-        features,
-        preds);
-    for(int i=0; i<8; i++)
-        printf("pred %d %f\n",
-                i,
-                preds[i]);
-    free(preds);
     return 0;
 }
