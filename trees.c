@@ -25,7 +25,7 @@ void fit_tree(
     // Initialize left and right children.
     Node * left = malloc(sizeof(Node));
     left->min_samples=node->min_samples;
-    
+
     Node * right = malloc(sizeof(Node));
     right->min_samples=node->min_samples;
 
@@ -33,6 +33,9 @@ void fit_tree(
     float best = -1, gl, gr;
     int nl, nr, left_n, right_n;
     for(int f=0; f<n_features; f++){
+    #pragma omp parallel private(nl, nr, gl, gr)
+    #pragma omp for
+    {
         for(int i=0; i<n_samples; i++){
             gl=0; gr=0;
             nl=0; nr=0;
@@ -45,7 +48,8 @@ void fit_tree(
                     nr++;
                 }
             }
-            if(best < gl * gl + gr * gr){
+            #pragma omp critical
+            {if(best < gl * gl + gr * gr){
                 best = gl * gl + gr * gr;
                 node->split_ind = f;
                 node->split = features[f][ind[i]];
@@ -53,11 +57,14 @@ void fit_tree(
                 right->val = gr / nr;
                 left_n = nl;
                 right_n = nr;
-            }
+            }}
         }
-    }
+    }}
 
-    if(node->min_samples < nl && node->min_samples < nr){
+    if(    node->min_samples <= left_n
+        && node->min_samples <= right_n
+        && 0 < left_n && 0 < right_n){
+
         node->leaf=0;
         int * left_ind = malloc(sizeof(int) * nl);
         int * right_ind = malloc(sizeof(int) * nr);
@@ -68,19 +75,18 @@ void fit_tree(
                 left_ind[j]=k;
                 ++j;
             } else {
-                left_ind[w]=k;
+                right_ind[w]=k;
                 ++w;
             }
         }
         node->left=left; node->right=right;
-        free(ind);    
+        free(ind);
 
         // Recursive calls.
-        printf("left_n=%d\n", left_n);
         fit_tree(left, n_features, left_n,
             left_ind, features, gradient);
-//        fit_tree(right, n_features, right_n,
-//            right_ind, features, gradient);
+        fit_tree(right, n_features, right_n,
+            right_ind, features, gradient);
 
     } else {
         free(left);free(right);
@@ -99,13 +105,21 @@ int main()
 
     float gradient[8] = {1,1,1,1,-1,-1,-1,-1};
     int * ind = malloc(8 * sizeof(int));
-    for(int i=0; i<8; i++) 
+    for(int i=0; i<8; i++)
         ind[i] = i;
 
     Node * root = malloc(sizeof(Node));
     root->leaf=1;
     root->min_samples=1;
-    
+
     fit_tree(root, 2, 8, ind, features, gradient);
+
+    printf("root.split=%f root.leaf=%d\n",
+        root->split, root->leaf);
+    printf("root.left.split=%f root.left.leaf=%d root.left.val=%f\n",
+        root->left->split, root->left->leaf, root->left->val);
+    printf("root.right.split=%f root.right.leaf=%d root.right.val=%f\n",
+        root->right->split, root->right->leaf, root->right->val);
+
     return 0;
 }
