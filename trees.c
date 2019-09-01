@@ -34,8 +34,8 @@ void fit_tree(
     int nl, nr, left_n, right_n;
     for(int f=0; f<n_features; f++){
         for(int i=0; i<n_samples; i++){
-            gl=0;
-            gr=0;
+            gl=0; gr=0;
+            nl=0; nr=0;
             for(int j=0; j<n_samples; j++){
                 if(features[f][ind[j]] < features[f][ind[i]]){
                     gl += gradient[ind[j]];
@@ -48,41 +48,44 @@ void fit_tree(
             if(best < gl * gl + gr * gr){
                 best = gl * gl + gr * gr;
                 node->split_ind = f;
-                printf("f=%d i=%d ind[i]=%d\n", f, i, ind[i]);
-                printf("features[f][ind[i]]=%f\n", features[f][ind[i]]);
                 node->split = features[f][ind[i]];
-//                left->val = gl / nl;
-//                right->val = gr / nr;
-//                left_n = nl;
-//                right_n = nr;
+                left->val = gl / nl;
+                right->val = gr / nr;
+                left_n = nl;
+                right_n = nr;
             }
         }
     }
-//
-//    if(node->min_samples < nl && node->min_samples < nr){
-//        node->leaf=0;
-//        left->ind = malloc(sizeof(int) * nl);
-//        right->ind = malloc(sizeof(int) * nr);
-//        int k, j=0, w=0;
-//        for(int i=0; i<node->n_samples; i++){
-//            k = node->ind[i];
-//            if(node->features[node->split_ind][k] < node->split){
-//                left->ind[j]=k;
-//                ++j;
-//            } else {
-//                left->ind[w]=k;
-//                ++w;
-//            }
-//        }
-//        node->left=left; node->right=right;
-//        free(node->ind);    
-//      // Recursive calls.
-//        fit_tree(right); fit_tree(left);
-//
-//    } else {
-//        free(left);free(right);
-//        node->leaf=1;
-//    }
+
+    if(node->min_samples < nl && node->min_samples < nr){
+        node->leaf=0;
+        int * left_ind = malloc(sizeof(int) * nl);
+        int * right_ind = malloc(sizeof(int) * nr);
+        int k, j=0, w=0;
+        for(int i=0; i<n_samples; i++){
+            k = ind[i];
+            if(features[node->split_ind][k] < node->split){
+                left_ind[j]=k;
+                ++j;
+            } else {
+                left_ind[w]=k;
+                ++w;
+            }
+        }
+        node->left=left; node->right=right;
+        free(ind);    
+
+        // Recursive calls.
+        printf("left_n=%d\n", left_n);
+        fit_tree(left, n_features, left_n,
+            left_ind, features, gradient);
+//        fit_tree(right, n_features, right_n,
+//            right_ind, features, gradient);
+
+    } else {
+        free(left);free(right);
+        node->leaf=1;
+    }
 }
 
 int main()
@@ -99,7 +102,7 @@ int main()
     for(int i=0; i<8; i++) 
         ind[i] = i;
 
-    Node * root = malloc(sizeof(root));
+    Node * root = malloc(sizeof(Node));
     root->leaf=1;
     root->min_samples=1;
     
