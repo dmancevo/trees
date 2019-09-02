@@ -1,11 +1,5 @@
 trees:
-	gcc -o trees.o -fopenmp trees.c
-
-run:
-	gcc -o trees.o -fopenmp trees.c
-	./trees.o
-	rm trees.o
-
+	gcc -fPIC -shared -o trees.o -fopenmp trees.c
 
 clean:
 	rm trees.o

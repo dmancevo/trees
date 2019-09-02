@@ -13,6 +13,14 @@ struct Node {
     Node * right;
 };
 
+Node * get_root(int min_samples)
+{
+    Node * root = malloc(sizeof(Node));
+    root->leaf=1;
+    root->min_samples=min_samples;
+    return root;
+}
+
 void fit_tree(
     Node * root,
     int n_features,
