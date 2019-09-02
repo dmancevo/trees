@@ -34,8 +34,8 @@ void fit_tree(
     int nl, nr, left_n, right_n;
     for(int f=0; f<n_features; f++){
     #pragma omp parallel private(nl, nr, gl, gr)
-    #pragma omp for
     {
+        #pragma omp for
         for(int i=0; i<n_samples; i++){
             gl=0; gr=0;
             nl=0; nr=0;
