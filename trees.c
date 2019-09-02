@@ -5,7 +5,7 @@ typedef struct Node Node;
 
 struct Node {
     int leaf;
-    float val;
+    float g;
     int min_samples;
     int split_ind;
     float split;
@@ -14,7 +14,7 @@ struct Node {
 };
 
 void fit_tree(
-    Node * node,
+    Node * root,
     int n_features,
     int n_samples,
     int * ind,
@@ -24,10 +24,10 @@ void fit_tree(
 
     // Initialize left and right children.
     Node * left = malloc(sizeof(Node));
-    left->min_samples=node->min_samples;
+    left->min_samples=root->min_samples;
 
     Node * right = malloc(sizeof(Node));
-    right->min_samples=node->min_samples;
+    right->min_samples=root->min_samples;
 
     // Find best split.
     float best = -1, gl, gr;
@@ -51,27 +51,27 @@ void fit_tree(
             #pragma omp critical
             {if(best < gl * gl + gr * gr){
                 best = gl * gl + gr * gr;
-                node->split_ind = f;
-                node->split = features[f][ind[i]];
-                left->val = gl / nl;
-                right->val = gr / nr;
+                root->split_ind = f;
+                root->split = features[f][ind[i]];
+                left->g = gl / nl;
+                right->g = gr / nr;
                 left_n = nl;
                 right_n = nr;
             }}
         }
     }}
 
-    if(    node->min_samples <= left_n
-        && node->min_samples <= right_n
+    if(    root->min_samples <= left_n
+        && root->min_samples <= right_n
         && 0 < left_n && 0 < right_n){
 
-        node->leaf=0;
+        root->leaf=0;
         int * left_ind = malloc(sizeof(int) * nl);
         int * right_ind = malloc(sizeof(int) * nr);
         int k, j=0, w=0;
         for(int i=0; i<n_samples; i++){
             k = ind[i];
-            if(features[node->split_ind][k] < node->split){
+            if(features[root->split_ind][k] < root->split){
                 left_ind[j]=k;
                 ++j;
             } else {
@@ -79,7 +79,7 @@ void fit_tree(
                 ++w;
             }
         }
-        node->left=left; node->right=right;
+        root->left=left; root->right=right;
         free(ind);
 
         // Recursive calls.
@@ -90,8 +90,30 @@ void fit_tree(
 
     } else {
         free(left);free(right);
-        node->leaf=1;
+        root->leaf=1;
     }
+}
+
+void predict(
+    Node * root,
+    int n_samples,
+    float ** features,
+    float * predictions)
+{
+    Node * node;
+    #pragma omp parallel private(node)
+    {
+    #pragma omp for
+    for(int i=0; i<n_samples; i++){
+        node = root;
+        while(node->leaf != 1){
+            if(features[node->split_ind][i] < node->split)
+                node = node->left;
+            else
+                node = node->right;
+        }
+        predictions[i] = node->g;
+    }}
 }
 
 int main()
@@ -114,12 +136,11 @@ int main()
 
     fit_tree(root, 2, 8, ind, features, gradient);
 
-    printf("root.split=%f root.leaf=%d\n",
-        root->split, root->leaf);
-    printf("root.left.split=%f root.left.leaf=%d root.left.val=%f\n",
-        root->left->split, root->left->leaf, root->left->val);
-    printf("root.right.split=%f root.right.leaf=%d root.right.val=%f\n",
-        root->right->split, root->right->leaf, root->right->val);
+    float * predictions = malloc(sizeof(float) * 10);
+    predict(root, 10, features, predictions);
+    for(int i=0; i<10; i++)
+        printf("i=%d label=%.2f prediction=%.2f\n",
+            i, gradient[i], predictions[i]);
 
     return 0;
 }
