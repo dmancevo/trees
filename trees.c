@@ -125,11 +125,16 @@ void tree_predict(
 
 typedef struct GBM GBM;
 struct GBM {
-    int last;
     int left;
     GBM * next;
     Node * root;
 };
+
+GBM * get_gbm(int n_trees){
+    GBM * gbm = malloc(sizeof(GBM));
+    gbm->left=n_trees-1;
+    return gbm;
+}
 
 void fit_gbm(
     GBM * gbm,
@@ -141,29 +146,50 @@ void fit_gbm(
 
     GBM * curr = gbm;
     float * predictions = malloc(sizeof(float) * n_samples);
-    int * ind = malloc(sizeof(int) * n_samples);
+    float * gbm_predictions = malloc(sizeof(float) * n_samples);
     float * gradient = malloc(sizeof(float) * n_samples);
+    #pragma omp parallel
+    {
+    #pragma omp for
     for(int i=0; i<n_samples; i++){
-        ind[i] = i;
-        gradient[i] = labels[i];
-    }
+        predictions[i] = 0;
+        gbm_predictions[i] = 0;
+    }}
 
-    while(0 < curr->left){
+    while(0 <= curr->left){
+        
+        int * ind = malloc(sizeof(int) * n_samples);
+        for(int i=0; i<n_samples; i++){
+            ind[i] = i;
+            gbm_predictions[i] += predictions[i];
+            gradient[i] = labels[i] - gbm_predictions[i];
+            predictions[i] = 0;
+        }
 
         curr->root = get_root(min_samples);
 
-        fit_tree(curr->root, n_samples,
-                    n_features, ind, features, gradient);
+        fit_tree(curr->root, n_features, n_samples,
+                    ind, features, gradient);
 
         tree_predict(curr->root, n_samples,
                         features, predictions);
 
+        printf("\n\n");
         for(int i=0; i<n_samples; i++)
-            gradient[i] = predictions[i] - labels[i];
+            printf("gradient[i]=%f pred[i]=%f\n",
+                gradient[i], predictions[i]);
 
         curr->next = malloc(sizeof(GBM)); 
+        curr->next->left = curr->left-1;
         curr = curr->next;
     }
+    printf("\n\n");
+    for(int i=0; i<n_samples; i++)
+        printf("label[i]=%f gbm_pred[i]=%f\n", labels[i], gbm_predictions[i]);
+
+    free(predictions);
+    free(gbm_predictions);
+    free(gradient);
 }
 
 int main()
@@ -175,22 +201,10 @@ int main()
     features[0] = feature_0;
     features[1] = feature_1;
 
-    float gradient[8] = {1,1,1,1,-1,-1,-1,-1};
-    int * ind = malloc(8 * sizeof(int));
-    for(int i=0; i<8; i++)
-        ind[i] = i;
+    float labels[8] = {1,1,1,1,-1,-1,-1,-1};
 
-    Node * root = malloc(sizeof(Node));
-    root->leaf=1;
-    root->min_samples=1;
-
-    fit_tree(root, 2, 8, ind, features, gradient);
-
-    float * predictions = malloc(sizeof(float) * 10);
-    tree_predict(root, 10, features, predictions);
-    for(int i=0; i<10; i++)
-        printf("i=%d label=%.2f prediction=%.2f\n",
-            i, gradient[i], predictions[i]);
+    GBM * gbm = get_gbm(4);
+    fit_gbm(gbm, 1, 2, 8, features, labels);
 
     return 0;
 }
