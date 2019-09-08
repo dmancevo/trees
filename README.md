@@ -1,3 +1,3 @@
 #Trees
 
-Decision trees in C and OpenMP.
+A very simple Gradient Boosting implementation in C and OpenMP.

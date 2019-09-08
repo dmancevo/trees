@@ -60,6 +60,7 @@ void fit_tree(
                 best = gl * gl + gr * gr;
                 root->split_ind = f;
                 root->split = features[f][ind[i]];
+                root->g = (gl + gr) / (nl + nr);
                 left->g = gl / nl;
                 right->g = gr / nr;
                 left_n = nl;
@@ -126,13 +127,15 @@ void tree_predict(
 typedef struct GBM GBM;
 struct GBM {
     int left;
+    float learning_rate;
     GBM * next;
     Node * root;
 };
 
-GBM * get_gbm(int n_trees){
+GBM * get_gbm(int n_trees, float learning_rate){
     GBM * gbm = malloc(sizeof(GBM));
     gbm->left=n_trees-1;
+    gbm->learning_rate=learning_rate;
     return gbm;
 }
 
@@ -152,21 +155,17 @@ void fit_gbm(
     {
     #pragma omp for
     for(int i=0; i<n_samples; i++){
-        predictions[i] = 0;
         gbm_predictions[i] = 0;
+        gradient[i] = labels[i];
     }}
 
     while(0 <= curr->left){
-        
-        int * ind = malloc(sizeof(int) * n_samples);
-        for(int i=0; i<n_samples; i++){
-            ind[i] = i;
-            gbm_predictions[i] += predictions[i];
-            gradient[i] = labels[i] - gbm_predictions[i];
-            predictions[i] = 0;
-        }
 
         curr->root = get_root(min_samples);
+
+        int * ind = malloc(sizeof(int) * n_samples);
+        for(int i=0; i<n_samples; i++)
+            ind[i] = i;
 
         fit_tree(curr->root, n_features, n_samples,
                     ind, features, gradient);
@@ -174,16 +173,17 @@ void fit_gbm(
         tree_predict(curr->root, n_samples,
                         features, predictions);
 
-        printf("\n\n");
-        for(int i=0; i<n_samples; i++)
-            printf("gradient[i]=%f pred[i]=%f\n",
-                gradient[i], predictions[i]);
-
-        curr->next = malloc(sizeof(GBM)); 
+        curr->next = malloc(sizeof(GBM));
         curr->next->left = curr->left-1;
+        curr->next->learning_rate = curr->learning_rate;
         curr = curr->next;
+
+        for(int i=0; i<n_samples; i++){
+            gbm_predictions[i] += predictions[i];
+            gradient[i] = labels[i] - gbm_predictions[i];
+        }
     }
-    printf("\n\n");
+
     for(int i=0; i<n_samples; i++)
         printf("label[i]=%f gbm_pred[i]=%f\n", labels[i], gbm_predictions[i]);
 
@@ -203,7 +203,7 @@ int main()
 
     float labels[8] = {1,1,1,1,-1,-1,-1,-1};
 
-    GBM * gbm = get_gbm(4);
+    GBM * gbm = get_gbm(10, 1.0);
     fit_gbm(gbm, 1, 2, 8, features, labels);
 
     return 0;
