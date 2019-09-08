@@ -179,7 +179,7 @@ void fit_gbm(
         curr = curr->next;
 
         for(int i=0; i<n_samples; i++){
-            gbm_predictions[i] += predictions[i];
+            gbm_predictions[i] += curr->learning_rate * predictions[i];
             gradient[i] = labels[i] - gbm_predictions[i];
         }
     }
